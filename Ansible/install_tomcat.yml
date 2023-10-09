@@ -1,0 +1,76 @@
+---
+- name: Install Tomcat
+  hosts: all
+  become: yes
+  tasks:
+    - name: Create Tomcat User and Directory
+      user:
+        name: tomcat
+        home: /opt/tomcat
+        shell: /bin/false
+        state: present
+
+    - name: Update Package List and Install Default JDK
+      apt:
+        update_cache: yes
+        name: default-jdk
+        state: present
+      become: yes
+
+    - name: Check Java Version
+      command: java -version
+      register: java_version_output
+      ignore_errors: yes
+
+    - name: Debug Java Version
+      debug:
+        var: java_version_output.stdout_lines
+
+    - name: Download and Extract Tomcat
+      get_url:
+        url: https://dlcdn.apache.org/tomcat/tomcat-10/v10.1.13/bin/apache-tomcat-10.1.13.tar.gz
+        dest: /tmp/apache-tomcat-10.1.13.tar.gz
+      delegate_to: localhost
+
+    - name: Extract Tomcat Archive
+      unarchive:
+        src: /tmp/apache-tomcat-10.1.13.tar.gz
+        dest: /opt/tomcat
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+      become: yes
+
+    - name: Set Permissions for Tomcat
+      file:
+        path: /opt/tomcat
+        owner: tomcat
+        group: tomcat
+        recurse: yes
+      become: yes
+
+        # - name: Update Java Alternatives
+        # command: update-java-alternatives -l
+        # become: yes
+
+    - name: Create Systemd Service for Tomcat
+      template:
+        src: tomcat.service.j2
+        dest: /etc/systemd/system/tomcat.service
+      become: yes
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+      become: yes
+
+    - name: Start Tomcat Service
+      service:
+        name: tomcat
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Check Tomcat Status
+      command: systemctl status tomcat
+      become: yes
+
